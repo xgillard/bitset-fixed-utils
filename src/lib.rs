@@ -2,7 +2,9 @@
 
 use std::{iter::Cloned, slice::Iter, cmp::Ordering};
 
-use bitset_fixed::BitSet;
+use fixedbitset::FixedBitSet;
+
+type BitSet = FixedBitSet;
 
 /// This structure defines an iterator capable of iterating over the 1-bits of
 /// a fixed bitset. It uses word representation of the items in the set, so it
@@ -11,10 +13,10 @@ use bitset_fixed::BitSet;
 ///
 /// # Example
 /// ```
-/// # use bitset_fixed::BitSet;
-/// # use ddo::BitSetIter;
+/// # use fixedbitset::FixedBitSet;
+/// # use bitset_fixed_utils::BitSetIter;
 ///
-/// let mut bit_set = BitSet::new(5);
+/// let mut bit_set = FixedBitSet::with_capacity(5);
 /// bit_set.set(1, true);
 /// bit_set.set(2, true);
 /// bit_set.set(4, true);
@@ -27,9 +29,9 @@ use bitset_fixed::BitSet;
 ///
 pub struct BitSetIter<'a> {
     /// An iterator over the buffer of words of the bitset
-    iter: Cloned<Iter<'a, u64>>,
+    iter: Cloned<Iter<'a, u32>>,
     /// The current word (or none if we exhausted all iterations)
-    word: Option<u64>,
+    word: Option<u32>,
     /// The value of position 0 in the current word
     base: usize,
     /// An offset in the current word
@@ -39,7 +41,7 @@ impl BitSetIter<'_> {
     /// This method creates an iterator for the given bitset from an immutable
     /// reference to that bitset.
     pub fn new(bs: &BitSet) -> BitSetIter {
-        let mut iter = bs.buffer().iter().cloned();
+        let mut iter = bs.as_slice().iter().cloned();
         let word = iter.next();
         BitSetIter {iter, word, base: 0, offset: 0}
     }
@@ -53,17 +55,17 @@ impl Iterator for BitSetIter<'_> {
     /// elements to iterate upon.
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(w) = self.word {
-            if w == 0 || self.offset >= 64 {
+            if w == 0 || self.offset >= 32 {
                 self.word   = self.iter.next();
-                self.base  += 64;
+                self.base  += 32;
                 self.offset = 0;
             } else {
-                let mut mask = 1_u64 << self.offset as u64;
-                while (w & mask) == 0 && self.offset < 64 {
+                let mut mask = 1_u32 << self.offset as u32;
+                while (w & mask) == 0 && self.offset < 32 {
                     mask <<= 1;
                     self.offset += 1;
                 }
-                if self.offset < 64 {
+                if self.offset < 32 {
                     let ret = Some(self.base + self.offset);
                     self.offset += 1;
                     return ret;
@@ -86,11 +88,11 @@ impl Iterator for BitSetIter<'_> {
 ///
 /// # Example
 /// ```
-/// # use bitset_fixed::BitSet;
-/// # use ddo::LexBitSet;
+/// # use fixedbitset::FixedBitSet;
+/// # use bitset_fixed_utils::LexBitSet;
 ///
-/// let mut a = BitSet::new(5);
-/// let mut b = BitSet::new(5);
+/// let mut a = FixedBitSet::with_capacity(5);
+/// let mut b = FixedBitSet::with_capacity(5);
 ///
 /// a.set(2, true);  // bits 0..2 match for a and b
 /// b.set(2, true);
@@ -117,16 +119,16 @@ pub struct LexBitSet<'a>(pub &'a BitSet);
 /// yourself with a loop on the 1-bits of the two sets.
 impl Ord for LexBitSet<'_> {
     fn cmp(&self, other: &Self) -> Ordering {
-        let mut x = self.0.buffer().iter().cloned();
-        let mut y = other.0.buffer().iter().cloned();
+        let mut x = self.0.as_slice().iter().cloned();
+        let mut y = other.0.as_slice().iter().cloned();
         let end   = x.len().max(y.len());
 
         for _ in 0..end {
             let xi = x.next().unwrap_or(0);
             let yi = y.next().unwrap_or(0);
             if xi != yi {
-                let mut mask = 1_u64;
-                for _ in 0..64 {
+                let mut mask = 1_u32;
+                for _ in 0..32 {
                     let bit_x = xi & mask;
                     let bit_y = yi & mask;
                     if bit_x != bit_y {
@@ -165,12 +167,11 @@ impl PartialEq for LexBitSet<'_> {
 #[cfg(test)]
 /// These tests validate the behavior of the bitset iterator `BitSetIter`.
 mod tests_bitset_iter {
-    use bitset_fixed::BitSet;
-    use crate::BitSetIter;
+    use crate::{BitSetIter, BitSet};
 
     #[test]
     fn bsiter_collect() {
-        let mut bit_set = BitSet::new(5);
+        let mut bit_set = BitSet::with_capacity(5);
         bit_set.set(1, true);
         bit_set.set(2, true);
         bit_set.set(4, true);
@@ -182,7 +183,7 @@ mod tests_bitset_iter {
     }
     #[test]
     fn bsiter_next_normal_case() {
-        let mut bit_set = BitSet::new(5);
+        let mut bit_set = BitSet::with_capacity(5);
         bit_set.set(1, true);
         bit_set.set(2, true);
         bit_set.set(4, true);
@@ -195,7 +196,7 @@ mod tests_bitset_iter {
     }
     #[test]
     fn bsiter_no_items() {
-        let bit_set = BitSet::new(5);
+        let bit_set = BitSet::with_capacity(5);
         let mut iter    = BitSetIter::new(&bit_set);
 
         assert_eq!(None, iter.next());
@@ -204,7 +205,7 @@ mod tests_bitset_iter {
     }
     #[test]
     fn bsiter_mutiple_words() {
-        let mut bit_set = BitSet::new(128);
+        let mut bit_set = BitSet::with_capacity(128);
         bit_set.set(  1, true);
         bit_set.set( 50, true);
         bit_set.set( 66, true);
@@ -222,13 +223,12 @@ mod tests_bitset_iter {
 /// These tests validate the behavior of the lexicographically ordered bitsets
 /// `LexBitSet`.
 mod tests_lexbitset {
-    use bitset_fixed::BitSet;
-    use crate::LexBitSet;
+    use crate::{LexBitSet, BitSet};
 
     #[test]
     fn same_size_less_than() {
-        let mut a = BitSet::new(200);
-        let mut b = BitSet::new(200);
+        let mut a = BitSet::with_capacity(200);
+        let mut b = BitSet::with_capacity(200);
 
         a.set(2, true);  // bits 0..2 match for a and b
         b.set(2, true);
@@ -247,8 +247,8 @@ mod tests_lexbitset {
     }
     #[test]
     fn same_size_greater_than() {
-        let mut a = BitSet::new(200);
-        let mut b = BitSet::new(200);
+        let mut a = BitSet::with_capacity(200);
+        let mut b = BitSet::with_capacity(200);
 
         a.set(2, true);  // bits 0..2 match for a and b
         b.set(2, true);
@@ -267,8 +267,8 @@ mod tests_lexbitset {
     }
     #[test]
     fn same_size_equal() {
-        let mut a = BitSet::new(200);
-        let mut b = BitSet::new(200);
+        let mut a = BitSet::with_capacity(200);
+        let mut b = BitSet::with_capacity(200);
 
         a.set(2, true);  // bits 0..2 match for a and b
         b.set(2, true);
@@ -288,8 +288,8 @@ mod tests_lexbitset {
     /// For different sized bitsets, it behaves as though they were padded with
     /// trailing zeroes.
     fn different_sizes_considered_padded_with_zeroes() {
-        let mut a = BitSet::new(20);
-        let mut b = BitSet::new(200);
+        let mut a = BitSet::with_capacity(20);
+        let mut b = BitSet::with_capacity(200);
 
         a.set(2, true);  // bits 0..2 match for a and b
         b.set(2, true);

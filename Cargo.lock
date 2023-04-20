@@ -3,14 +3,14 @@
 version = 3
 
 [[package]]
-name = "bitset-fixed"
-version = "0.1.0"
+name = "fixedbitset"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8cc868e96ba5c32ffae4d42bf2940ca7fca317dcef3f19b6d7de66b6885abff"
+checksum = "86d4de0081402f5e88cdac65c8dcdcc73118c1a7a465e2a05f0da05843a8ea33"
 
 [[package]]
-name = "bitset-fixed-utils"
-version = "0.1.0"
+name = "fixedbitset-utils"
+version = "0.2.0"
 dependencies = [
- "bitset-fixed",
+ "fixedbitset",
 ]
