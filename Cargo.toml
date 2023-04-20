@@ -1,0 +1,17 @@
+[package]
+name             = "bitset-fixed-utils"
+version          = "0.1.0"
+authors          = ["Xavier Gillard <xavier.gillard@uclouvain.be>"]
+edition          = "2021"
+description      = "A bunch of utility stuffs that I use when working with bitsets in Rust."
+repository       = "https://github.com/xgillard/bitset-fixed-utils"
+license          = "MIT"
+keywords         = ["bitset", "utils",]
+categories       = ["algorithms"]
+
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bitset-fixed = "0.1.0"
